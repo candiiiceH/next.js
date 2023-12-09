@@ -1332,7 +1332,7 @@ export async function buildAppStaticPaths({
           }
           hadAllParamsGenerated = true
 
-          const newParams = []
+          const newParams: Params = []
 
           for (const params of paramsItems) {
             const result = await curGenerate.generateStaticParams({ params })
@@ -1449,6 +1449,7 @@ export async function isPageStatic({
       let encodedPrerenderRoutes: Array<string> | undefined
       let prerenderFallback: boolean | 'blocking' | undefined
       let appConfig: AppConfig = {}
+      let isPPR = false
       let isClientComponent: boolean = false
       const pathIsEdgeRuntime = isEdgeRuntime(pageRuntime)
 
@@ -1555,16 +1556,19 @@ export async function isPageStatic({
           {}
         )
 
+        if (ppr && routeModule.definition.kind === RouteKind.APP_PAGE) {
+          isPPR = true
+        }
+
         if (appConfig.dynamic === 'force-static' && pathIsEdgeRuntime) {
           Log.warn(
             `Page "${page}" is using runtime = 'edge' which is currently incompatible with dynamic = 'force-static'. Please remove either "runtime" or "force-static" for correct behavior`
           )
         }
 
-        // If force dynamic was set and we don't have PPR enabled, then set the
-        // revalidate to 0.
-        // TODO: (PPR) remove this once PPR is enabled by default
-        if (appConfig.dynamic === 'force-dynamic' && !ppr) {
+        // When `dynamic = "force-dynamic"`, we should not retain the value in
+        // the cache.
+        if (appConfig.dynamic === 'force-dynamic') {
           appConfig.revalidate = 0
         }
 
@@ -1654,18 +1658,10 @@ export async function isPageStatic({
         )
       }
 
-      let isStatic = false
-      if (!hasStaticProps && !hasGetInitialProps && !hasServerProps) {
-        isStatic = true
-      }
+      const hasDynamicData =
+        hasStaticProps || hasGetInitialProps || hasServerProps
 
-      // When PPR is enabled, any route may contain or be completely static, so
-      // mark this route as static.
-      let isPPR = false
-      if (ppr && routeModule.definition.kind === RouteKind.APP_PAGE) {
-        isPPR = true
-        isStatic = true
-      }
+      const isStatic = isPPR || !hasDynamicData
 
       return {
         isStatic,
@@ -2059,7 +2055,7 @@ export function getPossibleInstrumentationHookFilenames(
   folder: string,
   extensions: string[]
 ) {
-  const files = []
+  const files: string[] = []
   for (const extension of extensions) {
     files.push(
       path.join(folder, `${INSTRUMENTATION_HOOK_FILENAME}.${extension}`),

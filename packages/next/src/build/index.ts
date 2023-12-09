@@ -161,6 +161,9 @@ import type { BuildTraceContext } from './webpack/plugins/next-trace-entrypoints
 import { formatManifest } from './manifests/formatter/format-manifest'
 import { getStartServerInfo, logStartInfo } from '../server/lib/app-info-log'
 import type { NextEnabledDirectories } from '../server/base-server'
+import createDebug from 'next/dist/compiled/debug'
+
+const debug = createDebug('next:build')
 
 interface ExperimentalBypassForInfo {
   experimentalBypassFor?: RouteHas[]
@@ -1654,6 +1657,8 @@ export default async function build(
                         }
                       )
 
+                      debug(`page ${page} isPageStatic:`, workerResult)
+
                       if (pageType === 'app' && originalAppPath) {
                         appNormalizedPaths.set(originalAppPath, page)
                         // TODO-APP: handle prerendering with edge
@@ -1694,7 +1699,10 @@ export default async function build(
                           }
 
                           const appConfig = workerResult.appConfig || {}
-                          if (appConfig.revalidate !== 0) {
+
+                          // Configure the page to be static if the revalidation
+                          // time isn't zero or the page has PPR enabled.
+                          if (appConfig.revalidate !== 0 || isPPR) {
                             const isDynamic = isDynamicRoute(page)
                             const hasGenerateStaticParams =
                               !!workerResult.prerenderRoutes?.length
@@ -2294,7 +2302,10 @@ export default async function build(
               )
             }
 
-            if (hasDynamicData && pageInfo.isStatic) {
+            // If the page has dynamic data, it should be marked as dynamic
+            // if it was previously marked as static. If PPR is enabled for this
+            // route though, it should continue to be marked as static
+            if (hasDynamicData && pageInfo.isStatic && !pageInfo.isPPR) {
               // if the page was marked as being static, but it contains dynamic data
               // (ie, in the case of a static generation bailout), then it should be marked dynamic
               patchPageInfos(pageInfos, page, {
@@ -2399,16 +2410,24 @@ export default async function build(
                 }
               } else {
                 hasDynamicData = true
-                // we might have determined during prerendering that this page
-                // used dynamic data
-                patchPageInfos(pageInfos, route, {
-                  isSSG: false,
-                  isStatic: false,
-                })
+                // We might have determined during prerendering that this page
+                // used dynamic data. If PPR is enabled, it should be marked
+                // as static.
+                if (!pageInfo.isPPR) {
+                  patchPageInfos(pageInfos, route, {
+                    isSSG: false,
+                    isStatic: false,
+                  })
+                }
               }
             })
 
-            if (!hasDynamicData && isDynamicRoute(originalAppPath)) {
+            // Add the route as a supported dynamic route if it has no data
+            // requirements or if PPR is enabled.
+            if (
+              (!hasDynamicData || pageInfo.isPPR) &&
+              isDynamicRoute(originalAppPath)
+            ) {
               const { dataRoute, prefetchDataRoute } = createAppDataRouteInfo(
                 page,
                 {
