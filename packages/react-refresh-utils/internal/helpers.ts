@@ -136,7 +136,7 @@ function isReactRefreshBoundary(moduleExports: unknown): boolean {
   return hasExports && areAllExportsComponents
 }
 
-function shouldInvalidateReactRefreshBoundary(
+function checkIfBoundaryNeedsInvalidation(
   prevSignature: unknown[],
   nextSignature: unknown[]
 ): boolean {
@@ -198,7 +198,7 @@ function scheduleUpdate() {
 export default {
   registerExportsForReactRefresh: registerExportsForReactRefresh,
   isReactRefreshBoundary: isReactRefreshBoundary,
-  shouldInvalidateReactRefreshBoundary: shouldInvalidateReactRefreshBoundary,
+  checkIfBoundaryNeedsInvalidation: checkIfBoundaryNeedsInvalidation,
   getRefreshBoundarySignature: getRefreshBoundarySignature,
   scheduleUpdate: scheduleUpdate,
 }
